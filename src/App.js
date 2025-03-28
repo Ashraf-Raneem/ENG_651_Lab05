@@ -2,9 +2,31 @@ import React, { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import Paho from "paho-mqtt";
 import "leaflet/dist/leaflet.css";
+import { ToastContainer, toast, Bounce } from "react-toastify";
+import L from "leaflet";
 
 const MQTT_BROKER = "wss://test.mosquitto.org:8081/mqtt"; // Default broker
 const MQTT_TOPIC = "ENG551/Ashraful/my_temperature";
+
+const toast_config = {
+    position: "top-right",
+    autoClose: 1000,
+    hideProgressBar: false,
+    closeOnClick: false,
+    pauseOnHover: true,
+    draggable: true,
+    progress: undefined,
+    theme: "light",
+    transition: Bounce,
+};
+
+const customIcon = new L.Icon({
+    iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+    shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+});
 
 const App = () => {
     const [location, setLocation] = useState(null);
@@ -37,11 +59,24 @@ const App = () => {
 
         client.onConnectionLost = (responseObject) => {
             console.log("MQTT Connection Lost:", responseObject.errorMessage);
+
+            setTimeout(() => {
+                toast.info("Connection lost, trying to reconnect", toast_config);
+                client.connect({
+                    onSuccess: () => {
+                        console.log("Reconnected to MQTT");
+                        client.subscribe(MQTT_TOPIC);
+                    },
+                    onFailure: (err) => console.log("Reconnect Failed", err),
+                    useSSL: true,
+                });
+            }, 3000); // Retry after 3 seconds
             setConnected(false);
         };
 
         client.onMessageArrived = (message) => {
             console.log("Received MQTT message:", message.payloadString);
+            toast.info("A new message received", toast_config);
             try {
                 const data = JSON.parse(message.payloadString);
                 setTemperature(data.properties.temp);
@@ -57,12 +92,14 @@ const App = () => {
         client.connect({
             onSuccess: () => {
                 console.log("MQTT Connected");
+                toast.success("Connected", toast_config);
                 setConnected(true);
                 client.subscribe(MQTT_TOPIC);
             },
             onFailure: (err) => {
                 console.log("MQTT Connection Failed", err);
                 setConnected(false);
+                toast.error("Disconnected", toast_config);
             },
             useSSL: true,
         });
@@ -75,6 +112,7 @@ const App = () => {
             mqttClient.disconnect();
             setConnected(false);
             console.log("MQTT Disconnected");
+            toast.error("Disconnected", toast_config);
         }
     };
 
@@ -91,73 +129,104 @@ const App = () => {
                 message = new Paho.Message(JSON.stringify(geojson));
                 message.destinationName = MQTT_TOPIC;
             } else {
-                message = new Paho.Message(msg);
+                message = new Paho.Message(JSON.stringify(msg));
                 message.destinationName = "ENG551/Ashraful/" + topic;
             }
             mqttClient.send(message);
+            toast.success("Message Added", toast_config);
         }
     };
 
     return (
-        <div className="container flex justify-center items-center">
-            <div className="flex flex-row justify-between w-100">
+        <div className="container flex flex-col justify-center items-center mt-12">
+            <div className="flex flex-row justify-between w-3/4">
                 {!connected ? (
                     <div className="flex flex-col">
                         <span>Broker: wss://test.mosquitto.org</span>
                         <span>Port : 8081</span>
                     </div>
                 ) : (
-                    <div className="flex flex-col">
+                    <button
+                        className="outline-2 p-1 m-2 px-4 rounded outline-black-200 text-black cursor-pointer"
+                        onClick={() => postMessage(MQTT_TOPIC, "", "share")}
+                    >
+                        Share My Status
+                    </button>
+                )}
+                <div>
+                    <button
+                        className="outline-2 p-1 mx-2 px-4 rounded outline-green-200 text-black cursor-pointer"
+                        onClick={() => {
+                            connectMQTT();
+                        }}
+                        disabled={connected}
+                    >
+                        Start
+                    </button>
+                    <button
+                        className="outline-2 p-1 m-2 px-4 rounded outline-red-200 text-black cursor-pointer"
+                        onClick={disconnectMQTT}
+                        disabled={!connected}
+                    >
+                        End
+                    </button>
+                </div>
+            </div>
+
+            {connected && (
+                <div className="grid grid-cols-3 gap-4">
+                    <div className="w-full col-span-2">
+                        <MapContainer center={[51.05, -114.07]} zoom={11} style={{ height: "700px", width: "100%" }}>
+                            <TileLayer
+                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            />
+                            <Marker position={location} icon={customIcon}>
+                                <Popup>Temperature: {temperature ?? "N/A"}°C</Popup>
+                            </Marker>
+                        </MapContainer>
+                    </div>
+                    <div className="flex flex-col p-2 m-4">
                         <div>
-                            <p>Pick a topic</p>
-                            <div className="flex flex-row">
+                            <p className="font-bold text-xl">Pick a topic</p>
+                            <div className="flex flex-row m-2">
                                 <span>ENG551/Ashraful/</span>
                                 <input
                                     type="text"
                                     value={clientText.topic}
-                                    onChange={(t) => setClientText({ topic: t })}
+                                    onChange={(e) =>
+                                        setClientText((formData) => ({ ...formData, topic: e.target.value }))
+                                    }
                                     placeholder="Ex: my_temperature"
-                                ></input>
+                                    className="ml-1 outline-2 outline-black-200 rounded-sm px-1"
+                                />
                             </div>
                         </div>
                         <div>
-                            <p>Your Message</p>
-                            <div>
-                                <textarea
-                                    placeholder="Your Message ...."
-                                    onChange={(t) => setClientText({ message: t })}
-                                    value={clientText.message}
-                                ></textarea>
-                            </div>
+                            <p className="font-bold text-xl">Text Message</p>
+                            <textarea
+                                placeholder="Your Message ...."
+                                onChange={(e) =>
+                                    setClientText((formData) => ({ ...formData, message: e.target.value }))
+                                }
+                                value={clientText.message}
+                                className="w-full outline-2 outline-black-200 rounded-sm m-2 p-2"
+                            />
                         </div>
+                        <button
+                            onClick={() => {
+                                postMessage(clientText.topic, clientText.message, "client_message");
+                                setClientText({ message: "", topic: "" });
+                            }}
+                            className="p-1 px-4 my-2 bg-black text-white rounded-sm cursor-pointer"
+                        >
+                            Submit
+                        </button>
                     </div>
-                )}
-                <button className="bg-red-200 text-black cursor-pointer" onClick={connectMQTT} disabled={connected}>
-                    Start
-                </button>
-                <button
-                    className="bg-green-200 text-black cursor-pointer"
-                    onClick={disconnectMQTT}
-                    disabled={!connected}
-                >
-                    End
-                </button>
-            </div>
-            <button
-                className="bg-slate-200 text-black cursor-pointer"
-                onClick={() => postMessage(MQTT_TOPIC, "", "share")}
-            >
-                Share My Status
-            </button>
-            <MapContainer center={[51.05, -114.07]} zoom={13} style={{ height: "400px", width: "100%" }}>
-                <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
-                <Marker position={[51.05, -114.07]}>
-                    <Popup>Temperature: {temperature ?? "N/A"}°C</Popup>
-                </Marker>
-            </MapContainer>
+                </div>
+            )}
+
+            <ToastContainer />
         </div>
     );
 };
