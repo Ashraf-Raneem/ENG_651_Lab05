@@ -169,7 +169,7 @@ const App = () => {
     };
 
     return (
-        <div className="container flex flex-col justify-center items-center mt-12">
+        <div className="flex flex-col justify-center items-center mt-12">
             <div className="flex flex-row justify-between w-3/4">
                 {!connected ? (
                     <div className="flex flex-col">
@@ -205,7 +205,7 @@ const App = () => {
             </div>
 
             {connected && (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                     <div className="w-full col-span-2">
                         <MapContainer center={[51.05, -114.07]} zoom={11} style={{ height: "700px", width: "100%" }}>
                             <TileLayer
