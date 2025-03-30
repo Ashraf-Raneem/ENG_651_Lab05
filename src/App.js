@@ -20,12 +20,34 @@ const toast_config = {
     transition: Bounce,
 };
 
-const customIcon = new L.Icon({
-    iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+// Defined custom icons for -14 to 10 temperature ranges
+const blueIcon = new L.Icon({
+    iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png",
     shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
     iconSize: [25, 41],
     iconAnchor: [12, 41],
     popupAnchor: [1, -34],
+    shadowSize: [41, 41],
+});
+
+// Defined custom icons for 10 to 30 temperature ranges
+const greenIcon = new L.Icon({
+    iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png",
+    shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
+});
+
+// Defined custom icons for 30 to 60 temperature ranges
+const redIcon = new L.Icon({
+    iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
+    shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
 });
 
 const App = () => {
@@ -131,10 +153,19 @@ const App = () => {
             } else {
                 message = new Paho.Message(JSON.stringify(msg));
                 message.destinationName = "ENG551/Ashraful/" + topic;
+                console.log("ENG551/Ashraful/" + topic);
             }
             mqttClient.send(message);
             toast.success("Message Added", toast_config);
         }
+    };
+
+    const getIcon = (t) => {
+        if (t < 10) {
+            return blueIcon;
+        } else if (t >= 10 && t < 30) {
+            return greenIcon;
+        } else return redIcon;
     };
 
     return (
@@ -181,9 +212,11 @@ const App = () => {
                                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                             />
-                            <Marker position={location} icon={customIcon}>
-                                <Popup>Temperature: {temperature ?? "N/A"}°C</Popup>
-                            </Marker>
+                            {temperature && (
+                                <Marker position={location} icon={getIcon(temperature)}>
+                                    <Popup>Temperature: {temperature ?? "N/A"}°C</Popup>
+                                </Marker>
+                            )}
                         </MapContainer>
                     </div>
                     <div className="flex flex-col p-2 m-4">
